@@ -64,6 +64,7 @@ void EVENT_MANAGER_UnregisterEvent(Event* event) {
 			{
 				previous->next = current->next;
 			}
+			return;
 		}
 		previous = current;
 		current = current->next;
