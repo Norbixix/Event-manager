@@ -1,18 +1,14 @@
 #include "event_manager.h"
 #include <stddef.h>
 #include <stdbool.h>
-#include <string.h>
-
-// Maximum number of events handled by the event manager
-#define MAX_NUMBER_OF_EVENTS 10
 
 // Table of Event handles
-static Event* events[MAX_NUMBER_OF_EVENTS];
-
+static Event* head = NULL;
 
 void EVENT_MANAGER_Init(void) {
-    memset(events, 0, sizeof(events));
+    head = NULL;
 }
+
 
 bool EVENT_MANAGER_RegisterEvent(Event* event, OnEventHandler onEvent, void* context) {
 	if(event == NULL || onEvent == NULL)
@@ -20,31 +16,30 @@ bool EVENT_MANAGER_RegisterEvent(Event* event, OnEventHandler onEvent, void* con
 		return false;
 	}
 	
-	for(uint8_t i = 0; i < MAX_NUMBER_OF_EVENTS; i++)
+	Event* current = head;
+
+	if(current == NULL)
 	{
-		if(events[i] == event){
-			event->isScheduled = false;
-			event->scheduledTime = 0;
-			event->onEvent = onEvent;
-			event->context = context;
-			events[i] = event;
-			return true;
+		head = event;
+		event->next = NULL;
+	}
+	else
+	{
+		while(current->next != NULL)
+		{
+			current = current->next;
 		}
+
+		current->next = event;
+		event->next = NULL;
 	}
 
-	for(uint8_t i = 0; i < MAX_NUMBER_OF_EVENTS; i++)
-	{
-		if(events[i] == NULL)
-		{
-			event->isScheduled = false;
-			event->scheduledTime = 0;
-			event->onEvent = onEvent;
-			event->context = context;
-			events[i] = event;
-			return true;
-		}
-	}
-	return false;
+	event->isScheduled = false;
+	event->scheduledTime = 0;
+	event->onEvent = onEvent;
+	event->context = context;
+	
+	return true;
 }
 
 
@@ -54,57 +49,68 @@ void EVENT_MANAGER_UnregisterEvent(Event* event) {
 		return;
 	}
 
-	for(uint8_t i = 0; i < MAX_NUMBER_OF_EVENTS; i++)
+	Event* current = head;
+	Event* previous = NULL;
+
+	while(current != NULL)
 	{
-		if(events[i] == event)
+		if(current == event)
 		{
-			events[i] = NULL;
-			event->isScheduled = false;
-			event->scheduledTime = 0;
-			event->onEvent = NULL;
-			event->context = NULL;
-			return;
+			if(previous == NULL)
+			{
+				head = current->next;
+			}
+			else
+			{
+				previous->next = current->next;
+			}
 		}
+		previous = current;
+		current = current->next;
 	}
 }
 
 
 bool EVENT_MANAGER_ScheduleEvent(Event* event, uint64_t time) {
-	if(event == NULL )
+	if(event == NULL)
 	{
 		return false;
 	}
 
-		for(uint8_t i = 0; i < MAX_NUMBER_OF_EVENTS; i++)
+	Event* current = head;
+
+	while(current != NULL)
 	{
-		if(events[i] == event)
+		if(current == event)
 		{
 			event->isScheduled = true;
 			event->scheduledTime = time;
 			return true;
 		}
+		current = current->next;
 	}
 	return false;
 }
 
 
 void EVENT_MANAGER_Proc(uint64_t currentTime) {
-	for(uint8_t i = 0; i < MAX_NUMBER_OF_EVENTS; i++)
+
+	Event* current = head;
+
+	while(current != NULL)
 	{
-		Event* event = events[i];
-
-		if(event != NULL && event->isScheduled && event->scheduledTime <= currentTime)
+		if(current != NULL && current->isScheduled && current->scheduledTime <= currentTime)
 		{
-			uint64_t scheduledTime = event->scheduledTime;
-			OnEventHandler onEvent = event->onEvent;
-			void* context = event ->context;
-
-			event->isScheduled = false;
+			uint64_t scheduledTime = current->scheduledTime;
+			OnEventHandler onEvent = current->onEvent;
+			void* context = current ->context;
+			current->isScheduled = false;
 
 			if(onEvent != NULL)
 			{
-				onEvent(event, scheduledTime, context);
+				onEvent(current, scheduledTime, context);
 			}
 		}
+		current = current->next;
 	}
 }
